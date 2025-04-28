@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Редактирование таблицы</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        td[contenteditable="true"]:focus {
+            background-color: #e6f7ff;
+            outline: 2px solid #66afe9;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Данные Inventarium</h1>
+            <a href="/export_excel" class="btn btn-success">📄 Экспорт в Excel</a>
+        </div>
+
+    <table class="table table-striped table-bordered" id="editableTable">
+        <thead class="table-dark">
+            <tr>
+                <th>Фото</th>
+                <th>Артикул</th>
+                <th>Расположение на складе</th>
+                <th>Наименование</th>
+                <th>Примечание</th>
+                <th>Последнее изменение (логин пользователя)</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            <tr data-doc-id="{{ item.doc_id }}">
+                <td>
+                    {% if item.photoUrl %}
+                        <img src="{{ item.photoUrl }}" alt="Фото" 
+                             class="img-thumbnail clickable-photo" 
+                             style="max-height: 100px; max-width: 100px; object-fit: cover;">
+                    {% else %}
+                        <span class="text-muted">Нет фото</span>
+                    {% endif %}
+                </td>
+                <td contenteditable="true" data-field="article">{{ item.article }}</td>
+                <td contenteditable="true" data-field="location">{{ item.location }}</td>
+                <td contenteditable="true" data-field="name">{{ item.name }}</td>
+                <td contenteditable="true" data-field="note">{{ item.note }}</td>
+                <td contenteditable="true" data-field="recentChangeUser">{{ item.recentChangeUser }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Модалка для увеличенного фото -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark">
+        <div class="modal-body p-0">
+          <img id="modalImage" src="" class="w-100" alt="Увеличенное фото" style="border-radius: 5px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const photos = document.querySelectorAll('.clickable-photo');
+    const modalImage = document.getElementById('modalImage');
+    const photoModal = new bootstrap.Modal(document.getElementById('photoModal'));
+
+    photos.forEach(photo => {
+        photo.addEventListener('click', () => {
+            modalImage.src = photo.src;
+            photoModal.show();
+        });
+    });
+    });
+
+    document.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+        let originalValue = '';
+    
+        cell.addEventListener('focus', (e) => {
+            originalValue = e.target.innerText.trim();
+        });
+    
+        cell.addEventListener('blur', async (e) => {
+            const cell = e.target;
+            const newValue = cell.innerText.trim();
+            const field = cell.getAttribute('data-field');
+            const row = cell.closest('tr');
+            const docId = row.getAttribute('data-doc-id');
+    
+            if (newValue !== originalValue) {
+                console.log("CHANHING DATA")
+                
+                await fetch('/update_cell', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        doc_id: docId,
+                        field: field,
+                        value: newValue
+                    })
+                });
+            }
+        });
+    
+        cell.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                cell.blur();
+            }
+        });
+    });
+
+// Функция для ресайза столбцов
+function makeTableResizable(table) {
+    const ths = table.querySelectorAll('th');
+    ths.forEach(th => {
+        const resizer = document.createElement('div');
+        resizer.style.width = '5px';
+        resizer.style.height = '100%';
+        resizer.style.position = 'absolute';
+        resizer.style.top = '0';
+        resizer.style.right = '0';
+        resizer.style.cursor = 'col-resize';
+        resizer.style.userSelect = 'none';
+        
+        th.style.position = 'relative';
+        th.appendChild(resizer);
+
+        let startX, startWidth;
+
+        resizer.addEventListener('mousedown', function(e) {
+            startX = e.pageX;
+            startWidth = parseInt(window.getComputedStyle(th).width, 10);
+            document.documentElement.addEventListener('mousemove', onMouseMove);
+            document.documentElement.addEventListener('mouseup', onMouseUp);
+        });
+
+        function onMouseMove(e) {
+            const newWidth = startWidth + (e.pageX - startX);
+            th.style.width = newWidth + 'px';
+        }
+
+        function onMouseUp() {
+            document.documentElement.removeEventListener('mousemove', onMouseMove);
+            document.documentElement.removeEventListener('mouseup', onMouseUp);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('editableTable');
+    makeTableResizable(table);
+});
+</script>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
