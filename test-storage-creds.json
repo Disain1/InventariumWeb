@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "test-storage-73eb7",
+  "private_key_id": "e986251ff3195642eefd38eb9405fffdc3fbb2cd",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDKS1YRQJM/eJR8\nhJjXDeXtyVSBQz9w65Qhh7VhyUG9bnBSpwajtYRKwtPX1PS8OLRkGwY5tDj94J7A\nZTWHpG/aNd2cwHpXXyNtU4oapESyJ/S6mZ4JaJwf6WnelVN9xdd0UUuazKCXpWXd\nK6zSM5ocNMY+/hTNbZM172AzwWm8G8W3E+3Z75vddryMt+rdP6m4XXudbYn/5oaC\nqXZdlUih4uMESb+Y2Q+GppQL28tXb572fdjytNywWe2DniddxsMANkGJgJJocwmO\ns9Su98svxenQcYg6y8DbMx29sBE881XIq3ZFgAwCV/zZo3hbm0Zr4f/yH6xnRy+m\nMRwvw1XDAgMBAAECggEAI/JGHXOxlqY5EHVJaXF1SY8sfnmyJMEfxeOFBhbKoTwm\nJnG6ms2O7+/1z9TuFiInX+Bzdz6AoBBRdVOmsu8z1v0aX5fORYdI1szw7fIBqPyz\nnpLcg8R8dak24E/9kYxd0DP/8MZqxPelhasUnxd/S4LPNXNVw/k0HvHl0NyOCtg9\nn8l/e63BqF2to/u96QdrLhAauSk093acakaRheXtEhCWFLiAsAlzF7ZEOQUGUg6O\nGdu7a1i3aj8uGL1cxaokJSKSUmLC101OBHy6//N9Q0KpUuEOFDlkXO5BkG0CbftX\nHy7YcuSJTIsbeONVl6tAepD7FFMyGlhXZ1eC5DsMAQKBgQDpQYopagHIJmOWUOr5\n/VoX0hJ3tWw2P5Ie/we/BeT7Xi85GVp3L3mf+jKT3Mi/62wdnLdJ/bi3lwX8QyU1\noigwgBnnqhP02hlJzqVPzwFxm+L4F4IyzKNIIPU+/2OGJcHtC7x5mq/IJyRcG87F\nTrrK5n5mHs6NzVmkJq7lO57kAQKBgQDeBPCbjnJgI2BaQ2BN9y4kLyM4X4yCEK+X\nZ/Su98Si9BDeCwREdC9u/tq6PVBTNGwNPWCpjep3DSiKeSq1GpkGm3EHjy95+cFK\nrLp6tC8VKXKfHxHCdWQb3YV3zh/8y+g8wAMIR6ZUKmslHFbCvvOVDtkYbabSIif7\nBgMM5TepwwKBgQDT1zIjaqMzo6nOWq8NW4r3F1KuZZZhrlqGzBe85R2RLXi14tDG\nbdeH8zL8Fwg7RRRr0GimSkf4dLB66oBgtWTKp4zfWRfGyE0vOv3n/ZjSFUGND8yv\nVir01vnkvQ0mSCRXpNEHn/UFUoczIA4qI9aBb9Rb6p6tKlK/QmKUzhEAAQKBgQCe\n/AaYPg8lTO/ocyr5abG+84pTCgkB8pTq5ORQjtheoEub1WO+6Tw2TYWvq8xjaLyf\nVn5rrFZj3iZT0qSEf4FpO9JayWwD+pcxtDLtPy4gB0gvLf53s7x2P9Edk5tQWWv6\nZL1HJpey2ZVUQ9DVMAwZh0Jqvcqh2xeqKAnzKAkOJQKBgQCG3zU1ianIN6ocEwbg\nePUREpsuV9QgBtu5CFryNDKVR2TIt1UF/Mh5AXN7QcplyjlPb5k5369daIVL9ZrH\n6+GyFH2ereOwdUExioZ+kGc5pSSU0WMWELiY9YuYcAGzfAGyfjPIAmRkGwm7CsMc\nEt+sNblhyV5WhMJa/sQtyG3vjw==\n-----END PRIVATE KEY-----\n",
+  "client_email": "inventarium-app1@test-storage-73eb7.iam.gserviceaccount.com",
+  "client_id": "106452382138410886805",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/inventarium-app1%40test-storage-73eb7.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
