@@ -12,7 +12,7 @@ import io
 app = Flask(__name__)
 
 # Инициализация Firebase
-cred = credentials.Certificate('test-storage-creds.json')
+cred = credentials.Certificate('creds.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -239,7 +239,6 @@ def export_excel():
     storages_sheet = wb.create_sheet(title="Storages")
 
     # Заголовки для складов
-    # Заголовки для складов
     storages_headers = ['ID склада', 'Наименование', 'Примечание', 'Адрес', 'Последнее изменение (логин пользователя)', "Ссылка на фото"]
     storages_sheet.append(storages_headers)
 
@@ -278,6 +277,7 @@ def export_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+
 @app.route('/')
 def index():
     selected_storage = request.args.get('storage')
@@ -291,6 +291,7 @@ def index():
         items.append(data)
 
     return render_template('index.html', items=items, storages=storages)
+
 
 @app.route('/update_cell', methods=['POST'])
 def update_cell():
@@ -310,5 +311,24 @@ def update_cell():
         # Сохраняем как ссылку на документ в Firestore
         update_data[field] = storages_ref.document(value)
 
+    update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+
     db.collection(collection).document(doc_id).update(update_data)
     return jsonify({'success': True})
+
+
+@app.route('/delete_document', methods=['POST'])
+def delete_document():
+    data = request.json
+    doc_id = data.get('doc_id')
+    collection = data.get('collection', 'items')
+
+    if not doc_id or collection not in ['items', 'storages']:
+        return jsonify({'success': False}), 400
+
+    db.collection(collection).document(doc_id).delete()
+    return jsonify({'success': True})
+
+
+#if __name__ == "__main__":
+#    app.run(debug=True)

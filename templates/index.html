@@ -33,16 +33,25 @@
     <table class="table table-striped table-bordered" id="editableStoragesTable">
         <thead class="table-dark">
             <tr>
+                <th></th>
                 <th>Фото</th>
-                <th>Наименование</th>
-                <th>Примечание</th>
-                <th>Адрес</th>
-                <th>Последнее изменение (логин пользователя)</th>
+                <th onclick="toggleSort(this, 'editableStoragesTable', 2)">Наименование <span></span></th>
+                <th onclick="toggleSort(this, 'editableStoragesTable', 3)">Примечание <span></span></th>
+                <th onclick="toggleSort(this, 'editableStoragesTable', 4)">Адрес <span></span></th>
+                <th onclick="toggleSort(this, 'editableStoragesTable', 5)">Последнее изменение (логин пользователя) <span></span></th>
             </tr>
         </thead>
         <tbody>
         {% for storage in storages %}
             <tr data-doc-id="{{ storage.id }}">
+                <td>
+                    <button class="btn btn-danger btn-sm delete-button"
+                        data-doc-id="{{ storage.id }}"
+                        data-collection="storages"
+                        data-name="{{ storage.name }}">🗑</button>
+                </td>
+
+
                 <td>
                     {% if storage.photoUrl %}
                         <img src="{{ storage.photoUrl }}" alt="Фото" 
@@ -67,19 +76,28 @@
     <table class="table table-striped table-bordered" id="editableItemsTable">
         <thead class="table-dark">
             <tr>
+                <th></th>
                 <th>Фото</th>
-                <th>Артикул</th>
-                <th>Наименование</th>
-                <th>Количество</th>
-                <th>Примечание</th>
-                <th>Последнее изменение (логин пользователя)</th>
-                <th>Расположение на складе</th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 2)">Артикул <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 3)">Наименование <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 4)">Количество <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 5)">Примечание <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 6)">Последнее изменение (логин пользователя) <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 7)">Расположение на складе <span></span></th>
                 <th>Склад</th>
             </tr>
         </thead>
         <tbody>
         {% for item in items %}
             <tr data-doc-id="{{ item.doc_id }}">
+                <td>
+                    <button class="btn btn-danger btn-sm delete-button"
+                    data-doc-id="{{ item.doc_id }}"
+                    data-collection="items"
+                    data-name="{{ item.name }}">🗑</button>
+                </td>
+
+
                 <td>
                     {% if item.photoUrl %}
                         <img src="{{ item.photoUrl }}" alt="Фото" 
@@ -123,6 +141,99 @@
   </div>
 
 <script>
+    let currentSortState = {
+    tableId: null,
+    columnIndex: null,
+    direction: null  // 'asc', 'desc', or null
+    };
+
+function toggleSort(header, tableId, columnIndex) {
+    const span = header.querySelector('span');
+
+    // Сбросить символ у всех остальных заголовков
+    document.querySelectorAll(`#${tableId} th span`).forEach(s => s.innerText = '');
+
+    if (currentSortState.tableId === tableId && currentSortState.columnIndex === columnIndex) {
+        if (currentSortState.direction === 'asc') {
+            currentSortState.direction = 'desc';
+            span.innerText = '⬇️';
+        } else if (currentSortState.direction === 'desc') {
+            currentSortState.direction = null;
+            currentSortState.tableId = null;
+            currentSortState.columnIndex = null;
+            clearSort(tableId);
+            return;
+        } else {
+            currentSortState.direction = 'asc';
+            span.innerText = '⬆️';
+        }
+    } else {
+        currentSortState = {
+            tableId,
+            columnIndex,
+            direction: 'asc'
+        };
+        span.innerText = '⬆️';
+    }
+
+    sortTable(tableId, columnIndex, currentSortState.direction);
+}
+
+function sortTable(tableId, columnIndex, direction = 'asc') {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort((a, b) => {
+        const cellA = a.cells[columnIndex]?.innerText.trim().toLowerCase() || '';
+        const cellB = b.cells[columnIndex]?.innerText.trim().toLowerCase() || '';
+
+        if (direction === 'asc') {
+            return cellA.localeCompare(cellB, 'ru');
+        } else {
+            return cellB.localeCompare(cellA, 'ru');
+        }
+    });
+
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function clearSort(tableId) {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => 0);  // Порядок не восстанавливаем — можно усложнить, если нужно
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+    document.addEventListener('click', async function(e) {
+    if (e.target.classList.contains('delete-button')) {
+        const docId = e.target.getAttribute('data-doc-id');
+        const collection = e.target.getAttribute('data-collection');
+        const name = e.target.getAttribute('data-name') || 'элемент';
+
+        const confirmed = confirm(`Вы действительно хотите удалить "${name}"?`);
+        if (confirmed) {
+            const response = await fetch('/delete_document', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ doc_id: docId, collection: collection })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                e.target.closest('tr').remove();
+            } else {
+                alert('Ошибка при удалении.');
+            }
+        }
+    }
+    });
+
     document.querySelectorAll('.storage-selector').forEach(select => {
     select.addEventListener('change', async (e) => {
         const newStorageId = e.target.value;
