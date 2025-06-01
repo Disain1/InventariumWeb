@@ -304,12 +304,17 @@ def update_cell():
     if not (doc_id and field and collection):
         return jsonify({'success': False}), 400
 
-
     update_data = {field: value}
 
     if field == 'storage':
         # Сохраняем как ссылку на документ в Firestore
         update_data[field] = storages_ref.document(value)
+
+    if field == 'count':
+        if value.isnumeric():
+            update_data[field] = int(value)
+        else:
+            update_data[field] = 1
 
     update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
 

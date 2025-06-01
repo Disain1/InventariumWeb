@@ -1,3 +1,5 @@
 creds.json
 requirements.txt
 Dockerfile
+firebase.json
+.gcloudignore
