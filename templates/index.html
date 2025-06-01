@@ -27,7 +27,12 @@
             </div>
         </div>
 
-    <div class="mb-3">
+    
+    <div class="py-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h3>Список складов</h3>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStorageModal">Добавить склад</button>
+        </div>
         <input type="text" class="form-control" id="searchStorages" placeholder="🔍 Поиск по складам...">
     </div>
     <table class="table table-striped table-bordered" id="editableStoragesTable">
@@ -70,7 +75,11 @@
         </tbody>
     </table>
 
-    <div class="mb-3">
+    <div class="py-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+        <h3>Список вещей</h3>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">Добавить вещь</button>
+        </div>        
         <input type="text" class="form-control" id="searchItems" placeholder="🔍 Поиск по вещам...">
     </div>
     <table class="table table-striped table-bordered" id="editableItemsTable">
@@ -140,7 +149,96 @@
     </div>
   </div>
 
+  <!-- Модалка для добавления склада -->
+  <div class="modal fade" id="addStorageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="addStorageForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Добавить склад</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input name="name" class="form-control mb-2" placeholder="Наименование" required>
+        <input name="note" class="form-control mb-2" placeholder="Примечание">
+        <input name="address" class="form-control mb-2" placeholder="Адрес">
+        
+        <div class="mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
+            <label class="form-label fw-bold mb-3 d-block">Добавление фото</label>
+            <input name="photoUrl" class="form-control mb-2" placeholder="Ссылка на фото">
+            <div class="text-center text-muted mb-2" style="font-size: 0.9em;">или</div>
+            <input name="photoFile" class="form-control" type="file" accept="image/*">
+        </div>
+
+        <!-- <input name="photoUrl" class="form-control mb-2" placeholder="Фото (URL)">
+        <input name="photoFile" class="form-control mb-2" type="file" accept="image/*"> -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" type="submit">Добавить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Модалка для добавления вещи -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="addItemForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Добавить вещь</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input name="article" class="form-control mb-2" placeholder="Артикул">
+        <input name="name" class="form-control mb-2" placeholder="Наименование" required>
+        <input name="count" class="form-control mb-2" type="number" min="1" placeholder="Количество" required>
+        <input name="note" class="form-control mb-2" placeholder="Примечание">
+        <input name="location" class="form-control mb-2" placeholder="Расположение">
+        <select name="storage" class="form-select mb-2">
+          {% for storage in storages %}
+            <option value="{{ storage.id }}">{{ storage.name }}</option>
+          {% endfor %}
+        </select>
+
+        <div class="mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
+            <label class="form-label fw-bold mb-3 d-block">Добавление фото</label>
+            <input name="photoUrl" class="form-control mb-2" placeholder="Ссылка на фото">
+            <div class="text-center text-muted mb-2" style="font-size: 0.9em;">или</div>
+            <input name="photoFile" class="form-control" type="file" accept="image/*">
+        </div>
+        <!-- <input name="photoUrl" class="form-control mb-2" placeholder="Фото (URL)">
+        <input name="photoFile" class="form-control mb-2" type="file" accept="image/*"> -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" type="submit">Добавить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
 <script>
+document.getElementById('addStorageForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const res = await fetch('/add_storage', { method: 'POST', body: formData });
+    if ((await res.json()).success) {
+        location.reload();
+        alert("Склад успешно добавлен!");
+    }
+});
+
+document.getElementById('addItemForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const res = await fetch('/add_item', { method: 'POST', body: formData });
+    if ((await res.json()).success) {
+        location.reload();
+        alert("Вещь успешно добавлена!");
+    }
+});
+
+
     let currentSortState = {
     tableId: null,
     columnIndex: null,

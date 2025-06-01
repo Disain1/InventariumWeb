@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 from datetime import datetime
 
 from openpyxl import Workbook
@@ -8,12 +8,16 @@ from openpyxl.styles import PatternFill, Font
 
 import pandas as pd
 import io
+import uuid
 
 app = Flask(__name__)
 
 # Инициализация Firebase
 cred = credentials.Certificate('creds.json')
-firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'test-storage-73eb7.firebasestorage.app'
+})
+bucket = storage.bucket()
 db = firestore.client()
 
 items_ref = db.collection('items')
@@ -34,6 +38,72 @@ def get_doc_data(doc):
         # Убираем поля, которые часто меняются автоматически
         data.pop('recentChangeTimestamp', None)
         return data
+
+
+def upload_file_to_storage(file):
+    filename = 'images/' + str(uuid.uuid4()) + '_' + file.filename
+    blob = bucket.blob(filename)
+    blob.upload_from_file(file, content_type=file.content_type)
+    blob.make_public()  # Чтобы получить публичную ссылку
+    return blob.public_url
+
+
+@app.route('/add_storage', methods=['POST'])
+def add_storage():
+    name = request.form.get('name')
+    if not name:
+        return jsonify({'success': False}), 400
+
+    photo_url = request.form.get('photoUrl', '')
+    if 'photoFile' in request.files and request.files['photoFile'].filename:
+        photo_url = upload_file_to_storage(request.files['photoFile'])
+
+    storage_data = {
+        'name': name,
+        'note': request.form.get('note', ''),
+        'address': request.form.get('address', ''),
+        'recentChangeTimestamp': firestore.SERVER_TIMESTAMP,
+        'recentChangeUser': 'admin',
+        'photoUrl': photo_url
+    }
+
+    new_doc = storages_ref.document()
+    storage_data['id'] = new_doc.id
+    new_doc.set(storage_data)
+
+    return jsonify({'success': True})
+
+
+
+@app.route('/add_item', methods=['POST'])
+def add_item():
+    name = request.form.get('name')
+    storage_id = request.form.get('storage')
+    if not (name and storage_id):
+        return jsonify({'success': False}), 400
+
+    photo_url = request.form.get('photoUrl', '')
+    if 'photoFile' in request.files and request.files['photoFile'].filename:
+        photo_url = upload_file_to_storage(request.files['photoFile'])
+
+    item_data = {
+        'article': request.form.get('article', ''),
+        'name': name,
+        'count': int(request.form.get('count', 1)),
+        'note': request.form.get('note', ''),
+        'location': request.form.get('location', ''),
+        'recentChangeUser': 'admin',
+        'recentChangeTimestamp': firestore.SERVER_TIMESTAMP,
+        'photoUrl': photo_url,
+        'storage': storages_ref.document(storage_id)
+    }
+
+    new_doc = items_ref.document()
+    item_data['id'] = new_doc.id
+    new_doc.set(item_data)
+
+    return jsonify({'success': True})
+
 
 
 @app.route('/import_excel', methods=['POST'])
@@ -280,8 +350,6 @@ def export_excel():
 
 @app.route('/')
 def index():
-    selected_storage = request.args.get('storage')
-
     storages = [doc.to_dict() | {'id': doc.id} for doc in storages_ref.stream()]
 
     items = []
@@ -335,5 +403,5 @@ def delete_document():
     return jsonify({'success': True})
 
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    app.run(debug=True)
