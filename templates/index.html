@@ -81,6 +81,16 @@
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">Добавить вещь</button>
         </div>        
         <input type="text" class="form-control" id="searchItems" placeholder="🔍 Поиск по вещам...">
+
+        <div class="d-flex justify-content-end align-items-center my-3">
+            <label for="storageFilter" class="me-2 mb-0">Фильтр по складу:</label>
+            <select id="storageFilter" class="form-select w-auto">
+                <option value="all">Все склады</option>
+                {% for storage in storages %}
+                    <option value="{{ storage.id }}">{{ storage.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
     <table class="table table-striped table-bordered" id="editableItemsTable">
         <thead class="table-dark">
@@ -325,6 +335,7 @@ function clearSort(tableId) {
             const result = await response.json();
             if (result.success) {
                 e.target.closest('tr').remove();
+                location.reload();
             } else {
                 alert('Ошибка при удалении.');
             }
@@ -337,7 +348,7 @@ function clearSort(tableId) {
         const newStorageId = e.target.value;
         const docId = e.target.getAttribute('data-doc-id');
 
-        await fetch('/update_cell', {
+        const response = await fetch('/update_cell', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -348,8 +359,19 @@ function clearSort(tableId) {
                 value: newStorageId
             })
         });
+
+        const result = await response.json();
+
+        if (result.merged) {
+            alert("На выбранном складе уже есть вещь с таким именем.\nОни были объединены");
+            location.reload();
+        } else if (result.moved) {
+            alert("Вещь успешно перемещена на другой склад.");
+        } else if (!result.success) {
+            alert("Ошибка при перемещении.");
+        }
     });
-    });
+});
 
     function setupTableFilter(inputId, tableId) {
         const input = document.getElementById(inputId);
@@ -470,6 +492,22 @@ function makeTableResizable(table) {
         makeTableResizable(storagesTable);
         makeTableResizable(itemsTable);
     });
+
+    document.addEventListener('DOMContentLoaded', function () {
+    const filterSelect = document.getElementById('storageFilter');
+    const itemsTable = document.getElementById('editableItemsTable');
+    const rows = itemsTable.querySelectorAll('tbody tr');
+
+    filterSelect.addEventListener('change', () => {
+        const selectedId = filterSelect.value;
+
+        rows.forEach(row => {
+            const selectElement = row.querySelector('.storage-selector');
+            const itemStorageId = selectElement?.value;
+            row.style.display = (selectedId === 'all' || itemStorageId === selectedId) ? '' : 'none';
+        });
+    });
+});
 </script>
 
 

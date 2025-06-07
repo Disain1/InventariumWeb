@@ -221,7 +221,6 @@ def import_excel():
         if firestore_id not in excel_item_ids:
             name = current_item_docs[firestore_id].to_dict().get("name", firestore_id)
             log['deleted_items'].append(name)
-
             items_ref.document(firestore_id).delete()
 
 
@@ -361,6 +360,35 @@ def index():
     return render_template('index.html', items=items, storages=storages)
 
 
+# @app.route('/update_cell', methods=['POST'])
+# def update_cell():
+#     data = request.json
+#     doc_id = data.get('doc_id')
+#     field = data.get('field')
+#     value = data.get('value')
+#     collection = data.get('collection', 'items')  # default to 'items'
+
+#     if not (doc_id and field and collection):
+#         return jsonify({'success': False}), 400
+
+#     update_data = {field: value}
+
+#     if field == 'storage':
+#         # Сохраняем как ссылку на документ в Firestore
+#         update_data[field] = storages_ref.document(value)
+
+#     if field == 'count':
+#         if value.isnumeric():
+#             update_data[field] = int(value)
+#         else:
+#             update_data[field] = 1
+
+#     update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+
+#     db.collection(collection).document(doc_id).update(update_data)
+#     return jsonify({'success': True})
+
+
 @app.route('/update_cell', methods=['POST'])
 def update_cell():
     data = request.json
@@ -373,21 +401,68 @@ def update_cell():
         return jsonify({'success': False}), 400
 
     update_data = {field: value}
+    doc_ref = db.collection(collection).document(doc_id)
 
     if field == 'storage':
-        # Сохраняем как ссылку на документ в Firestore
-        update_data[field] = storages_ref.document(value)
+        # Получаем текущую вещь
+        current_doc = doc_ref.get()
+        if not current_doc.exists:
+            return jsonify({'success': False}), 404
+        current_item = current_doc.to_dict()
+        current_name = current_item.get('name')
+        current_count = current_item.get('count', 1)
+        new_storage_ref = storages_ref.document(value)
+
+        # Ищем вещь с таким же названием на новом складе
+        same_name_query = items_ref.where('name', '==', current_name).where('storage', '==', new_storage_ref).stream()
+        matching_item = next(same_name_query, None)
+
+        if matching_item:
+            existing_item = matching_item.to_dict()
+            existing_doc_id = matching_item.id
+            total_count = existing_item.get('count', 1) + current_count
+
+            # Обновляем количество на новом складе
+            items_ref.document(existing_doc_id).update({
+                'count': total_count,
+                'recentChangeTimestamp': firestore.SERVER_TIMESTAMP
+            })
+
+            # Удаляем текущую вещь
+            doc_ref.delete()
+
+            return jsonify({'success': True, 'merged': True})
+
+        else:
+            # Просто обновляем склад
+            update_data['storage'] = new_storage_ref
+            update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+            doc_ref.update(update_data)
+            return jsonify({'success': True, 'moved': True})
 
     if field == 'count':
-        if value.isnumeric():
-            update_data[field] = int(value)
-        else:
-            update_data[field] = 1
+        update_data[field] = int(value) if str(value).isnumeric() else 1
 
     update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
-
-    db.collection(collection).document(doc_id).update(update_data)
+    update_data['recentChangeUser'] = 'admin'
+    doc_ref.update(update_data)
     return jsonify({'success': True})
+
+
+# @app.route('/delete_document', methods=['POST'])
+# def delete_document():
+#     data = request.json
+#     doc_id = data.get('doc_id')
+#     collection = data.get('collection', 'items')
+
+#     if not doc_id or collection not in ['items', 'storages']:
+#         return jsonify({'success': False}), 400
+    
+#     if collection == 'storages':
+#         db.collection(collection)
+
+#     db.collection(collection).document(doc_id).delete()
+#     return jsonify({'success': True})
 
 
 @app.route('/delete_document', methods=['POST'])
@@ -399,9 +474,25 @@ def delete_document():
     if not doc_id or collection not in ['items', 'storages']:
         return jsonify({'success': False}), 400
 
+    if collection == 'storages':
+        # Удаляем все вещи, у которых storage == ссылка на этот склад
+        storage_ref = storages_ref.document(doc_id)
+        items_to_delete = items_ref.where('storage', '==', storage_ref).stream()
+        deleted_names = []
+
+        for item_doc in items_to_delete:
+            items_ref.document(item_doc.id).delete()
+            deleted_names.append(item_doc.to_dict().get('name', item_doc.id))
+
+        # Удаляем сам склад
+        storages_ref.document(doc_id).delete()
+
+        return jsonify({'success': True, 'deleted_items': deleted_names})
+
+    # Если просто удаляется вещь
     db.collection(collection).document(doc_id).delete()
     return jsonify({'success': True})
 
 
-# if __name__ == "__main__":
-#    app.run(debug=True)
+if __name__ == "__main__":
+   app.run(debug=True)
