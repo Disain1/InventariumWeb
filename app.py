@@ -151,7 +151,7 @@ def import_excel():
             'photoUrl': clean_value(row.get('Ссылка на фото')),
             'name': clean_value(row.get('Наименование', '')),
             'note': clean_value(row.get('Примечание', '')),
-            'recentChangeUser': row.get('Последнее изменение (логин пользователя)', ''),
+            'recentChangeUser': row.get('Логин', ''),
             #'recentChangeTimestamp': firestore.SERVER_TIMESTAMP
         }
 
@@ -199,7 +199,7 @@ def import_excel():
             'name': clean_value(row.get('Наименование', '')),
             'note': clean_value(row.get('Примечание', '')),
             'count': clean_value_int(row.get("Количество", '')),
-            'recentChangeUser': clean_value(row.get('Последнее изменение (логин пользователя)', '')),
+            'recentChangeUser': clean_value(row.get('Логин', '')),
             #'recentChangeTimestamp': firestore.SERVER_TIMESTAMP,
             'location': clean_value(row.get('Расположение на складе', '')),
             'photoUrl': clean_value(row.get('Ссылка на фото', '')),
@@ -263,10 +263,10 @@ def export_excel():
             'Наименование': item.get('name'),
             'Количество': item.get('count'),
             'Примечание': item.get('note'),
-            'Последнее изменение (логин пользователя)': item.get('recentChangeUser'),
+            'Логин': item.get('recentChangeUser'),
             'Расположение на складе': item.get('location'),
             'Склад': storage_name,
-            'Ссылка на фото': item.get('photo_url')
+            'Ссылка на фото': item.get('photoUrl')
         })
 
     # Создаём DataFrame для товаров (items)
@@ -280,7 +280,7 @@ def export_excel():
     items_sheet.title = 'Items'
 
     # Заголовки
-    headers = ['ID вещи', 'Артикул', 'Наименование', 'Количество', 'Примечание', 'Последнее изменение (логин пользователя)', 'Расположение на складе', 'Склад', "Ссылка на фото"]
+    headers = ['ID вещи', 'Артикул', 'Наименование', 'Количество', 'Примечание', 'Логин', 'Расположение на складе', 'Склад', "Ссылка на фото"]
     items_sheet.append(headers)
 
     # Форматирование для заголовков
@@ -302,13 +302,13 @@ def export_excel():
 
     # Добавляем строки данных
     for row in items_data:
-        items_sheet.append([row['ID вещи'], row['Артикул'], row['Наименование'], row['Количество'], row['Примечание'], row['Последнее изменение (логин пользователя)'], row['Расположение на складе'], row['Склад'], row['Ссылка на фото']])
+        items_sheet.append([row['ID вещи'], row['Артикул'], row['Наименование'], row['Количество'], row['Примечание'], row['Логин'], row['Расположение на складе'], row['Склад'], row['Ссылка на фото']])
 
     # Лист для Storages
     storages_sheet = wb.create_sheet(title="Storages")
 
     # Заголовки для складов
-    storages_headers = ['ID склада', 'Наименование', 'Примечание', 'Адрес', 'Последнее изменение (логин пользователя)', "Ссылка на фото"]
+    storages_headers = ['ID склада', 'Наименование', 'Примечание', 'Адрес', 'Логин', "Ссылка на фото"]
     storages_sheet.append(storages_headers)
 
     # Форматирование заголовков
@@ -360,33 +360,61 @@ def index():
     return render_template('index.html', items=items, storages=storages)
 
 
-# @app.route('/update_cell', methods=['POST'])
-# def update_cell():
-#     data = request.json
-#     doc_id = data.get('doc_id')
-#     field = data.get('field')
-#     value = data.get('value')
-#     collection = data.get('collection', 'items')  # default to 'items'
+@app.route('/move_item', methods=['POST'])
+def move_item():
+    data = request.get_json()
+    doc_id = data.get('doc_id')
+    move_count = int(data.get('count', 0))
+    destination_id = data.get('destination')
 
-#     if not (doc_id and field and collection):
-#         return jsonify({'success': False}), 400
+    if not doc_id or not destination_id or move_count <= 0:
+        return jsonify({'success': False}), 400
 
-#     update_data = {field: value}
+    item_doc = items_ref.document(doc_id).get()
+    if not item_doc.exists:
+        return jsonify({'success': False, 'message': 'Вещь не найдена'}), 404
 
-#     if field == 'storage':
-#         # Сохраняем как ссылку на документ в Firestore
-#         update_data[field] = storages_ref.document(value)
+    item = item_doc.to_dict()
+    if item['count'] < move_count:
+        return jsonify({'success': False, 'message': 'Недостаточно количества'}), 400
 
-#     if field == 'count':
-#         if value.isnumeric():
-#             update_data[field] = int(value)
-#         else:
-#             update_data[field] = 1
+    name = item['name']
+    destination_ref = storages_ref.document(destination_id)
 
-#     update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+    # Проверяем, есть ли такая же вещь на целевом складе
+    existing_q = items_ref.where('name', '==', name).where('storage', '==', destination_ref).stream()
+    existing_item = next(existing_q, None)
 
-#     db.collection(collection).document(doc_id).update(update_data)
-#     return jsonify({'success': True})
+    if existing_item:
+        existing_data = existing_item.to_dict()
+        new_count = existing_data.get('count', 1) + move_count
+        items_ref.document(existing_item.id).update({
+            'count': new_count,
+            'recentChangeTimestamp': firestore.SERVER_TIMESTAMP
+        })
+        message = 'Вещь объединена с уже существующей.'
+    else:
+        # Копируем данные с новой ссылкой и новым количеством
+        new_data = item.copy()
+        new_data['count'] = move_count
+        new_data['storage'] = destination_ref
+        new_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+        new_data['recentChangeUser'] = 'admin'
+        new_doc = items_ref.document()
+        new_data['id'] = new_doc.id
+        new_doc.set(new_data)
+        message = 'Вещь перемещена на новый склад.'
+
+    # Уменьшаем количество или удаляем исходную
+    if item['count'] == move_count:
+        items_ref.document(doc_id).delete()
+    else:
+        items_ref.document(doc_id).update({
+            'count': item['count'] - move_count,
+            'recentChangeTimestamp': firestore.SERVER_TIMESTAMP
+        })
+
+    return jsonify({'success': True, 'message': message})
 
 
 @app.route('/update_cell', methods=['POST'])
@@ -494,5 +522,5 @@ def delete_document():
     return jsonify({'success': True})
 
 
-if __name__ == "__main__":
-   app.run(debug=True)
+# if __name__ == "__main__":
+#    app.run(debug=True)

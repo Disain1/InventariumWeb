@@ -43,7 +43,7 @@
                 <th onclick="toggleSort(this, 'editableStoragesTable', 2)">Наименование <span></span></th>
                 <th onclick="toggleSort(this, 'editableStoragesTable', 3)">Примечание <span></span></th>
                 <th onclick="toggleSort(this, 'editableStoragesTable', 4)">Адрес <span></span></th>
-                <th onclick="toggleSort(this, 'editableStoragesTable', 5)">Последнее изменение (логин пользователя) <span></span></th>
+                <th onclick="toggleSort(this, 'editableStoragesTable', 5)">Логин <span></span></th>
             </tr>
         </thead>
         <tbody>
@@ -101,9 +101,9 @@
                 <th onclick="toggleSort(this, 'editableItemsTable', 3)">Наименование <span></span></th>
                 <th onclick="toggleSort(this, 'editableItemsTable', 4)">Количество <span></span></th>
                 <th onclick="toggleSort(this, 'editableItemsTable', 5)">Примечание <span></span></th>
-                <th onclick="toggleSort(this, 'editableItemsTable', 6)">Последнее изменение (логин пользователя) <span></span></th>
+                <th onclick="toggleSort(this, 'editableItemsTable', 6)">Логин <span></span></th>
                 <th onclick="toggleSort(this, 'editableItemsTable', 7)">Расположение на складе <span></span></th>
-                <th>Склад</th>
+                <th style="min-width: 300px;">Склад</th>
             </tr>
         </thead>
         <tbody>
@@ -114,6 +114,12 @@
                     data-doc-id="{{ item.doc_id }}"
                     data-collection="items"
                     data-name="{{ item.name }}">🗑</button>
+
+                    <button class="btn btn-sm btn-warning me-1 move-button"
+                    data-doc-id="{{ item.doc_id }}"
+                    data-name="{{ item.name }}"
+                    data-count="{{ item.count }}"
+                    data-storage-id="{{ item.storage.id }}">📦</button>
                 </td>
 
 
@@ -147,6 +153,37 @@
         </tbody>
     </table>
 </div>
+
+<!-- Модалка для перемещения вещи -->
+<div class="modal fade" id="moveItemModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="moveItemForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Переместить вещь</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="doc_id" id="moveDocId">
+        <div class="mb-3">
+          <label class="form-label">Количество для перемещения</label>
+          <input type="number" class="form-control" name="count" id="moveCount" min="1">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Куда переместить</label>
+          <select class="form-select" name="destination" id="moveDestination">
+            {% for storage in storages %}
+              <option value="{{ storage.id }}">{{ storage.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Переместить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
 <!-- Модалка для увеличенного фото -->
 <div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
@@ -198,8 +235,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <input name="article" class="form-control mb-2" placeholder="Артикул">
         <input name="name" class="form-control mb-2" placeholder="Наименование" required>
+        <input name="article" class="form-control mb-2" placeholder="Артикул">
         <input name="count" class="form-control mb-2" type="number" min="1" placeholder="Количество" required>
         <input name="note" class="form-control mb-2" placeholder="Примечание">
         <input name="location" class="form-control mb-2" placeholder="Расположение">
@@ -228,6 +265,67 @@
 
 
 <script>
+// Функции для работы с куками
+function setCookie(name, value, days = 30) {
+  const d = new Date();
+  d.setTime(d.getTime() + days*24*60*60*1000);
+  document.cookie = name + "=" + encodeURIComponent(value) + ";path=/;expires=" + d.toUTCString();
+}
+
+function getCookie(name) {
+  const cookies = document.cookie.split('; ');
+  for (let c of cookies) {
+    const [key, val] = c.split('=');
+    if (key === name) return decodeURIComponent(val);
+  }
+  return null;
+}
+
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('move-button')) {
+    const docId = e.target.getAttribute('data-doc-id');
+    const name = e.target.getAttribute('data-name');
+    const count = e.target.getAttribute('data-count');
+    const currentStorage = e.target.getAttribute('data-storage-id');
+
+    document.getElementById('moveDocId').value = docId;
+    document.getElementById('moveCount').value = count;
+    document.getElementById('moveCount').setAttribute('max', count);
+
+    const destination = document.getElementById('moveDestination');
+    [...destination.options].forEach(option => {
+      option.disabled = option.value === currentStorage;
+    });
+
+    new bootstrap.Modal(document.getElementById('moveItemModal')).show();
+  }
+});
+
+document.getElementById('moveItemForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const docId = form.moveDocId.value;
+  const count = parseInt(form.moveCount.value);
+  const destination = form.moveDestination.value;
+
+  const response = await fetch('/move_item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ doc_id: docId, count, destination })
+  });
+
+  const result = await response.json();
+  if (result.success) {
+    alert(result.message || 'Вещь успешно перемещена');
+    location.reload();
+  } else {
+    alert('Ошибка при перемещении');
+  }
+});
+
+
+
 document.getElementById('addStorageForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
@@ -378,9 +476,13 @@ function clearSort(tableId) {
         const table = document.getElementById(tableId);
         const tbody = table.querySelector('tbody');
 
+        
+
         input.addEventListener('input', () => {
             const filter = input.value.trim().toLowerCase();
             const rows = tbody.querySelectorAll('tr');
+            
+            setCookie('searchItems', filter);
 
             rows.forEach(row => {
                 const text = row.innerText.toLowerCase();
@@ -500,13 +602,33 @@ function makeTableResizable(table) {
 
     filterSelect.addEventListener('change', () => {
         const selectedId = filterSelect.value;
-
+        
+        setCookie('storageFilter', selectedId);
         rows.forEach(row => {
             const selectElement = row.querySelector('.storage-selector');
             const itemStorageId = selectElement?.value;
             row.style.display = (selectedId === 'all' || itemStorageId === selectedId) ? '' : 'none';
         });
     });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const filterSelect = document.getElementById('storageFilter');
+    const searchInput = document.getElementById('searchItems');
+
+  // Восстанавливаем фильтр склада
+  const savedStorageFilter = getCookie('storageFilter');
+  if (savedStorageFilter) {
+    filterSelect.value = savedStorageFilter;
+    filterSelect.dispatchEvent(new Event('change'));
+  }
+
+  // Восстанавливаем поиск
+  const savedSearchItems = getCookie('searchItems');
+  if (savedSearchItems) {
+    searchInput.value = savedSearchItems;
+    searchInput.dispatchEvent(new Event('input'));
+  }
 });
 </script>
 
