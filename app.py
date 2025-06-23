@@ -5,7 +5,9 @@ from datetime import datetime
 
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font
+from openpyxl.drawing.image import Image as ExcelImage
 
+import qrcode
 import pandas as pd
 import io
 import uuid
@@ -46,6 +48,15 @@ def upload_file_to_storage(file):
     blob.upload_from_file(file, content_type=file.content_type)
     blob.make_public()  # Чтобы получить публичную ссылку
     return blob.public_url
+
+
+@app.route('/check_storage_items_count/<storage_id>')
+def check_storage_items_count(storage_id):
+    storage_ref = storages_ref.document(storage_id)
+    items_query = items_ref.where('storage', '==', storage_ref).stream()
+    count = len(list(item.to_dict() for item in items_query))
+    print(count)
+    return jsonify({'count': count})
 
 
 @app.route('/add_storage', methods=['POST'])
@@ -104,6 +115,55 @@ def add_item():
 
     return jsonify({'success': True})
 
+
+@app.route('/update_item', methods=['POST'])
+def update_item():
+    doc_id = request.form.get('doc_id')
+    if not doc_id:
+        return jsonify({'success': False, 'message': 'Не передан ID документа'}), 400
+
+    doc_ref = items_ref.document(doc_id)
+    doc_snapshot = doc_ref.get()
+    if not doc_snapshot.exists:
+        return jsonify({'success': False, 'message': 'Документ не найден'}), 404
+
+    update_data = {}
+
+    def get_clean(key, default=''):
+        return request.form.get(key, default).strip()
+
+    update_data['name'] = get_clean('name')
+    update_data['article'] = get_clean('article')
+    update_data['note'] = get_clean('note')
+    update_data['location'] = get_clean('location')
+
+    # Количество
+    try:
+        update_data['count'] = int(request.form.get('count', 1))
+    except ValueError:
+        update_data['count'] = 1
+
+    # Склад
+    storage_id = get_clean('storage')
+    if storage_id:
+        update_data['storage'] = storages_ref.document(storage_id)
+
+    # Фото: либо URL, либо новый файл
+    photo_url = get_clean('photoUrl')
+    photo_file = request.files.get('photoFile')
+
+    if photo_file and photo_file.filename:
+        # Загружаем фото в хранилище
+        photo_url = upload_file_to_storage(photo_file)
+
+    if photo_url:
+        update_data['photoUrl'] = photo_url
+
+    update_data['recentChangeTimestamp'] = firestore.SERVER_TIMESTAMP
+    update_data['recentChangeUser'] = 'admin'
+
+    doc_ref.update(update_data)
+    return jsonify({'success': True})
 
 
 @app.route('/import_excel', methods=['POST'])
@@ -280,8 +340,12 @@ def export_excel():
     items_sheet.title = 'Items'
 
     # Заголовки
-    headers = ['ID вещи', 'Артикул', 'Наименование', 'Количество', 'Примечание', 'Логин', 'Расположение на складе', 'Склад', "Ссылка на фото"]
+    # headers = ['ID вещи', 'Артикул', 'Наименование', 'Количество', 'Примечание', 'Логин', 'Расположение на складе', 'Склад', "Ссылка на фото"]
+    # items_sheet.append(headers)
+
+    headers = ['ID вещи', 'Артикул', 'Наименование', 'Количество', 'Примечание', 'Логин', 'Расположение на складе', 'Склад', "Ссылка на фото", 'QR-код']
     items_sheet.append(headers)
+    
 
     # Форматирование для заголовков
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
@@ -292,23 +356,49 @@ def export_excel():
         cell.font = header_font
 
     # Задаём ширину колонок для Items
-    items_sheet.column_dimensions['A'].width = 20  # ID вещи
+    items_sheet.column_dimensions['A'].width = 30  # ID вещи
     items_sheet.column_dimensions['B'].width = 20  # Артикул
     items_sheet.column_dimensions['C'].width = 30  # Наименование
-    items_sheet.column_dimensions['D'].width = 40  # Примечание
-    items_sheet.column_dimensions['E'].width = 35  # Последнее изменение
-    items_sheet.column_dimensions['F'].width = 30  # Расположение на складе
-    items_sheet.column_dimensions['G'].width = 30  # Склад (название)
+    items_sheet.column_dimensions['D'].width = 10   # Количество
+    items_sheet.column_dimensions['E'].width = 40  # Примечание
+    items_sheet.column_dimensions['F'].width = 35  # Логин
+    items_sheet.column_dimensions['G'].width = 30  # Расположение на складе
+    items_sheet.column_dimensions['I'].width = 30  # Склад (название)
+    items_sheet.column_dimensions['J'].width = 30  # QR CODE
 
-    # Добавляем строки данных
-    for row in items_data:
-        items_sheet.append([row['ID вещи'], row['Артикул'], row['Наименование'], row['Количество'], row['Примечание'], row['Логин'], row['Расположение на складе'], row['Склад'], row['Ссылка на фото']])
+    
+
+    # # Добавляем строки данных
+    # for row in items_data:
+    #     items_sheet.append([row['ID вещи'], row['Артикул'], row['Наименование'], row['Количество'], row['Примечание'], row['Логин'], row['Расположение на складе'], row['Склад'], row['Ссылка на фото']])
+
+    for i, row in enumerate(items_data, start=2):  # начинаем со 2-й строки (после заголовка)
+        items_sheet.row_dimensions[i].height = 64
+
+        items_sheet.append([
+            row['ID вещи'], row['Артикул'], row['Наименование'], row['Количество'],
+            row['Примечание'], row['Логин'], row['Расположение на складе'],
+            row['Склад'], row['Ссылка на фото']
+        ])
+
+        # Генерируем QR-код
+        qr_text = f"items/{row['ID вещи']}"
+        qr_img = qrcode.make(qr_text)
+
+        img_path = f"tmp/item_qr_{i}.png"
+        qr_img.save(img_path)
+
+        img = ExcelImage(img_path)
+        img.width = 64
+        img.height = 64
+        cell_ref = f"J{i}"  # 10-я колонка
+        items_sheet.add_image(img, cell_ref)
 
     # Лист для Storages
     storages_sheet = wb.create_sheet(title="Storages")
 
     # Заголовки для складов
-    storages_headers = ['ID склада', 'Наименование', 'Примечание', 'Адрес', 'Логин', "Ссылка на фото"]
+    storages_headers = ['ID склада', 'Наименование', 'Примечание', 'Адрес', 'Логин', "Ссылка на фото", "QR-код"]
     storages_sheet.append(storages_headers)
 
     # Форматирование заголовков
@@ -321,9 +411,11 @@ def export_excel():
     storages_sheet.column_dimensions['C'].width = 40  # Примечание
     storages_sheet.column_dimensions['D'].width = 40  # Примечание
     storages_sheet.column_dimensions['E'].width = 35  # Последнее изменение
+    storages_sheet.column_dimensions['G'].width = 15  # QR CODE
 
     # Добавляем данные складов
-    for doc in storages_ref.stream():
+    for i, doc in enumerate(storages_ref.stream(), start=2):
+        storages_sheet.row_dimensions[i].height = 64
         storage = doc.to_dict()
         storages_sheet.append([
             doc.id,
@@ -333,6 +425,17 @@ def export_excel():
             storage.get('recentChangeUser', ''),
             storage.get('photoUrl')
         ])
+
+        qr_text = f"storages/{doc.id}"
+        qr_img = qrcode.make(qr_text)
+        img_path = f"tmp/storage_qr_{i}.png"
+        qr_img.save(img_path)
+
+        img = ExcelImage(img_path)
+        img.width = 64
+        img.height = 64
+        cell_ref = f"G{i}"  # 7-я колонка
+        storages_sheet.add_image(img, cell_ref)
 
     # Сохраняем файл в память
     output = io.BytesIO()
@@ -349,7 +452,10 @@ def export_excel():
 
 @app.route('/')
 def index():
-    storages = [doc.to_dict() | {'id': doc.id} for doc in storages_ref.stream()]
+    storages = sorted(
+        [doc.to_dict() | {'id': doc.id} for doc in storages_ref.stream()],
+        key=lambda x: x.get('name', '').lower()
+    )
 
     items = []
     for doc in items_ref.stream():
@@ -522,5 +628,5 @@ def delete_document():
     return jsonify({'success': True})
 
 
-# if __name__ == "__main__":
-#    app.run(debug=True)
+if __name__ == "__main__":
+   app.run(debug=True)

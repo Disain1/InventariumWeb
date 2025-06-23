@@ -120,6 +120,17 @@
                     data-name="{{ item.name }}"
                     data-count="{{ item.count }}"
                     data-storage-id="{{ item.storage.id }}">📦</button>
+
+                    <button class="btn btn-sm btn-secondary me-1 edit-button"
+                    data-doc-id="{{ item.doc_id }}"
+                    data-article="{{ item.article }}"
+                    data-name="{{ item.name }}"
+                    data-count="{{ item.count }}"
+                    data-note="{{ item.note }}"
+                    data-location="{{ item.location }}"
+                    data-storage-id="{{ item.storage.id }}"
+                    data-photo-url="{{ item.photoUrl }}">✏️</button>
+
                 </td>
 
 
@@ -226,6 +237,7 @@
   </div>
 </div>
 
+
 <!-- Модалка для добавления вещи -->
 <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
@@ -240,10 +252,12 @@
         <input name="count" class="form-control mb-2" type="number" min="1" placeholder="Количество" required>
         <input name="note" class="form-control mb-2" placeholder="Примечание">
         <input name="location" class="form-control mb-2" placeholder="Расположение">
-        <select name="storage" class="form-select mb-2">
-          {% for storage in storages %}
-            <option value="{{ storage.id }}">{{ storage.name }}</option>
-          {% endfor %}
+        
+        <select name="storage" class="form-select mb-2" required>
+        <option value="" disabled selected hidden>Выберите склад</option>
+            {% for storage in storages %}
+                <option value="{{ storage.id }}">{{ storage.name }}</option>
+            {% endfor %}
         </select>
 
         <div class="mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
@@ -257,6 +271,45 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" type="submit">Добавить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- Модалка для редактирования вещи -->
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="editItemForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Редактировать вещь</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input name="name" class="form-control mb-2" placeholder="Наименование" required>
+        <input name="article" class="form-control mb-2" placeholder="Артикул">
+        <input name="count" class="form-control mb-2" type="number" min="1" placeholder="Количество" required>
+        <input name="note" class="form-control mb-2" placeholder="Примечание">
+        <input name="location" class="form-control mb-2" placeholder="Расположение">
+        
+        <select name="storage" class="form-select mb-2" required>
+        <option value="" disabled selected hidden>Выберите склад</option>
+            {% for storage in storages %}
+                <option value="{{ storage.id }}">{{ storage.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
+            <label class="form-label fw-bold mb-3 d-block">Добавление фото</label>
+            <input name="photoUrl" class="form-control mb-2" placeholder="Ссылка на фото">
+            <div class="text-center text-muted mb-2" style="font-size: 0.9em;">или</div>
+            <input name="photoFile" class="form-control" type="file" accept="image/*">
+        </div>
+        <!-- <input name="photoUrl" class="form-control mb-2" placeholder="Фото (URL)">
+        <input name="photoFile" class="form-control mb-2" type="file" accept="image/*"> -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
       </div>
     </form>
   </div>
@@ -281,6 +334,46 @@ function getCookie(name) {
   return null;
 }
 
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('edit-button')) {
+    const btn = e.target;
+
+    // Заполняем поля формы
+    document.querySelector('#editItemModal input[name="name"]').value = btn.getAttribute('data-name') || '';
+    document.querySelector('#editItemModal input[name="article"]').value = btn.getAttribute('data-article') || '';
+    document.querySelector('#editItemModal input[name="count"]').value = btn.getAttribute('data-count') || '1';
+    document.querySelector('#editItemModal input[name="note"]').value = btn.getAttribute('data-note') || '';
+    document.querySelector('#editItemModal input[name="location"]').value = btn.getAttribute('data-location') || '';
+    document.querySelector('#editItemModal input[name="photoUrl"]').value = btn.getAttribute('data-photo-url') || '';
+    document.querySelector('#editItemModal select[name="storage"]').value = btn.getAttribute('data-storage-id') || '';
+
+    // Устанавливаем флаг редактирования
+    document.getElementById('editItemForm').setAttribute('data-edit-id', btn.getAttribute('data-doc-id'));
+
+    new bootstrap.Modal(document.getElementById('editItemModal')).show();
+  }
+});
+
+document.getElementById('editItemForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = this;
+    const formData = new FormData(form);
+    const editId = form.getAttribute('data-edit-id');
+    formData.append('doc_id', editId);
+
+    const res = await fetch('/update_item', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await res.json();
+    if (result.success) {
+        alert('Вещь успешно обновлена!');
+        location.reload();
+    } else {
+        alert(result.message || 'Ошибка при обновлении.');
+    }
+});
 
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('move-button')) {
@@ -421,6 +514,23 @@ function clearSort(tableId) {
         const name = e.target.getAttribute('data-name') || 'элемент';
 
         const confirmed = confirm(`Вы действительно хотите удалить "${name}"?`);
+
+        if (collection == "storages") {
+            const checkRes = await fetch(`/check_storage_items_count/${docId}`);
+            const checkData = await checkRes.json();
+
+            if (!checkRes.ok) {
+                alert('Ошибка при проверке склада.');
+                return;
+            }
+
+            if (checkData.count > 0) {
+                confirmMessage = `На складе "${name}" хранятся ${checkData.count} позиций.\nПродолжая, они будут также удалены!\n\nУдалить склад?`;
+                storage_confirmed = confirm(confirmMessage);
+                if (!storage_confirmed) { return; }
+            }
+        }
+
         if (confirmed) {
             const response = await fetch('/delete_document', {
                 method: 'POST',

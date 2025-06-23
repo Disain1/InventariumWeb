@@ -3,3 +3,4 @@ requirements.txt
 Dockerfile
 firebase.json
 .gcloudignore
+*.png
