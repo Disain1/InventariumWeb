@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Редактирование таблицы</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <style>
         td[contenteditable="true"]:focus {
             background-color: #e6f7ff;
@@ -286,6 +287,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <canvas id="itemQrCode" style="margin: 20px auto; display: block;"></canvas>
         <input name="name" class="form-control mb-2" placeholder="Наименование" required>
         <input name="article" class="form-control mb-2" placeholder="Артикул">
         <input name="count" class="form-control mb-2" type="number" min="1" placeholder="Количество" required>
@@ -337,6 +339,7 @@ function getCookie(name) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('edit-button')) {
     const btn = e.target;
+    const id = btn.getAttribute('data-doc-id');
 
     // Заполняем поля формы
     document.querySelector('#editItemModal input[name="name"]').value = btn.getAttribute('data-name') || '';
@@ -346,6 +349,12 @@ document.addEventListener('click', function(e) {
     document.querySelector('#editItemModal input[name="location"]').value = btn.getAttribute('data-location') || '';
     document.querySelector('#editItemModal input[name="photoUrl"]').value = btn.getAttribute('data-photo-url') || '';
     document.querySelector('#editItemModal select[name="storage"]').value = btn.getAttribute('data-storage-id') || '';
+
+    const qr = new QRious({
+      element: document.getElementById('itemQrCode'),
+      value: `items/${id}`,
+      size: 160
+    });
 
     // Устанавливаем флаг редактирования
     document.getElementById('editItemForm').setAttribute('data-edit-id', btn.getAttribute('data-doc-id'));

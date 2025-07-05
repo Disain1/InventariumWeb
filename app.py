@@ -366,7 +366,6 @@ def export_excel():
     items_sheet.column_dimensions['I'].width = 30  # Склад (название)
     items_sheet.column_dimensions['J'].width = 30  # QR CODE
 
-    
 
     # # Добавляем строки данных
     # for row in items_data:
@@ -383,7 +382,7 @@ def export_excel():
 
         # Генерируем QR-код
         qr_text = f"items/{row['ID вещи']}"
-        qr_img = qrcode.make(qr_text)
+        qr_img = qrcode.make(qr_text, box_size=20)
 
         img_path = f"tmp/item_qr_{i}.png"
         qr_img.save(img_path)
